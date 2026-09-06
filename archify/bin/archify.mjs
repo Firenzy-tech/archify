@@ -444,12 +444,14 @@ async function commandCompare(args) {
 
   const basePath = path.resolve(baseInput);
   const headPath = path.resolve(headInput);
+  const receiptTarget = options.receipt || compareReceiptPath(path.resolve(requestedOutput || 'architecture-delta.html'));
   let outputPath;
   try {
     ({ outputPath } = resolveOutputPath({
       requestedOutput,
       defaultOutput: 'architecture-delta.html',
       inputPaths: [basePath, headPath],
+      otherOutputPaths: [path.resolve(receiptTarget)],
     }));
   } catch (error) {
     const outputDiagnostic = error.archifyDiagnostics?.[0];
@@ -641,6 +643,7 @@ async function commandCompare(args) {
         requestedOutput,
         defaultOutput: 'architecture-delta.html',
         inputPaths: [basePath, headPath],
+        otherOutputPaths: [receiptPath],
       }).outputPath;
       resolveOutputPath({
         requestedOutput: options.receipt || compareReceiptPath(currentOutput),

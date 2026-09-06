@@ -88,6 +88,71 @@ test('compare rejects a non-JSON receipt before writing either output', t => {
   assert.equal(fs.readFileSync(receipt, 'utf8'), marker);
 });
 
+for (const aliasKind of ['same path', 'symlink alias']) {
+  test(`compare reports target alias before CLI extension for ${aliasKind}`, t => {
+    const cwd = workspace(t);
+    const output = path.join(cwd, 'same.json');
+    const receipt = aliasKind === 'same path'
+      ? output
+      : path.join(cwd, 'receipt.json');
+    fs.writeFileSync(output, marker);
+    if (aliasKind === 'symlink alias') {
+      try { fs.symlinkSync(output, receipt, 'file'); }
+      catch (error) {
+        if (error.code === 'EPERM') { t.skip('symlink creation requires permission'); return; }
+        throw error;
+      }
+    }
+
+    const result = run([
+      'compare', 'architecture', base, head, output,
+      '--receipt', receipt, '--json',
+    ], cwd);
+
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(JSON.parse(result.stdout).diagnostics[0].code, 'output/target-alias');
+    assert.equal(fs.readFileSync(output, 'utf8'), marker);
+    if (aliasKind === 'symlink alias') assert.equal(fs.readlinkSync(receipt), output);
+  });
+}
+
+test('compare keeps CLI extension precedence for distinct invalid outputs', t => {
+  const cwd = workspace(t);
+  const output = path.join(cwd, 'artifact.json');
+  const receipt = path.join(cwd, 'receipt.txt');
+  fs.writeFileSync(output, marker);
+  fs.writeFileSync(receipt, marker);
+
+  const result = run([
+    'compare', 'architecture', base, head, output,
+    '--receipt', receipt, '--json',
+  ], cwd);
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(JSON.parse(result.stdout).diagnostics[0].code, 'output/cli-extension');
+  assert.equal(fs.readFileSync(output, 'utf8'), marker);
+  assert.equal(fs.readFileSync(receipt, 'utf8'), marker);
+});
+
+test('compare reports target alias before CLI extension for a derived receipt symlink', t => {
+  const cwd = workspace(t);
+  const output = path.join(cwd, 'artifact.json');
+  const receipt = path.join(cwd, 'artifact.receipt.json');
+  fs.writeFileSync(output, marker);
+  try { fs.symlinkSync(output, receipt, 'file'); }
+  catch (error) {
+    if (error.code === 'EPERM') { t.skip('symlink creation requires permission'); return; }
+    throw error;
+  }
+
+  const result = run(['compare', 'architecture', base, head, output, '--json'], cwd);
+
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal(JSON.parse(result.stdout).diagnostics[0].code, 'output/target-alias');
+  assert.equal(fs.readFileSync(output, 'utf8'), marker);
+  assert.equal(fs.readlinkSync(receipt), output);
+});
+
 test('absolute HTML and JSON outputs outside cwd remain supported', t => {
   const dir = workspace(t);
   const cwd = path.join(dir, 'working');
